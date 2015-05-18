@@ -1,19 +1,23 @@
 package test;
 
 import com.hazelcast.config.Config;
+import com.hazelcast.config.MapConfig;
+import com.hazelcast.config.MapStoreConfig;
 import com.hazelcast.config.XmlConfigBuilder;
-import com.hazelcast.core.*;
+import com.hazelcast.core.Hazelcast;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.IMap;
+import com.hazelcast.core.MigrationEvent;
+import com.hazelcast.core.MigrationListener;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 public class Node {
     private static Logger logger = Logger.getLogger(Node.class);
@@ -27,21 +31,29 @@ public class Node {
 
     private final HazelcastInstance hazelcast;
 
+    private static String mapName = "TestMap";
     private IMap<String, String> map;
     private boolean valueSet;
-    private String clientListenerKey;
+    private String migrationListenerKey;
 
     public Node()
     {
+        final TestMapLoader loader = new TestMapLoader();
         XmlConfigBuilder configBuilder = new XmlConfigBuilder();
         Config config = configBuilder.build();
         config.setProperty("hazelcast.logging.type", "log4j");
+        MapConfig mapConfig = config.getMapConfig(mapName);
+        MapStoreConfig mapStoreConfig = new MapStoreConfig();
+        mapStoreConfig.setImplementation(loader);
+        mapStoreConfig.setInitialLoadMode(MapStoreConfig.InitialLoadMode.EAGER);
+        mapConfig.setMapStoreConfig(mapStoreConfig);
 
         hazelcast = Hazelcast.newHazelcastInstance(config);
     }
 
     public void start()
     {
+/*
         scheduler.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -49,21 +61,36 @@ public class Node {
                 //dump();
             }
         }, 2, 2, TimeUnit.SECONDS);
-
-        clientListenerKey = hazelcast.getClientService().addClientListener(new ClientListener() {
+*/
+        migrationListenerKey = hazelcast.getPartitionService().addMigrationListener(new MigrationListener() {
             @Override
-            public void clientConnected(Client client) {
-                System.out.println("Client connected: "+client.getSocketAddress());
-                logger.info("Client connected: "+client.getSocketAddress());
+            public void migrationStarted(MigrationEvent migrationEvent) {
+                logger.info("Migration started: " + migrationEvent.toString());
             }
 
             @Override
-            public void clientDisconnected(Client client) {
-                System.out.println("Client disconnected: "+client.getSocketAddress());
-                logger.info("Client disconnected: "+client.getSocketAddress());
+            public void migrationCompleted(MigrationEvent migrationEvent) {
+                logger.info("Migration completed: "+migrationEvent.toString());
+            }
+
+            @Override
+            public void migrationFailed(MigrationEvent migrationEvent) {
+                logger.warn("Migration failed: " + migrationEvent.toString());
             }
         });
-        map = hazelcast.getMap("TestMap");
+
+        map = hazelcast.getMap(mapName);
+        //fillMap();
+        dump();
+    }
+
+    public void stop()
+    {
+        hazelcast.getPartitionService().removeMigrationListener(migrationListenerKey);
+        hazelcast.getLifecycleService().shutdown();
+    }
+
+    private void dump() {
         try {
             Set<Map.Entry<String, String>> entries = map.entrySet();
             System.out.println("TestMap contains "+entries.size()+" entries");
@@ -73,36 +100,6 @@ public class Node {
         {
             logger.error("Exception occurred while trying to get entrySet", e);
         }
-
-        map.set(hazelcast.getCluster().getLocalMember().getSocketAddress().toString(), hazelcast.getCluster().getLocalMember().getSocketAddress().getHostName());
-    }
-
-    private void changeValue() {
-        if(valueSet) {
-            map.remove(hazelcast.getCluster().getLocalMember().getUuid());
-        }
-        else {
-            map.set(hazelcast.getCluster().getLocalMember().getUuid(), hazelcast.getCluster().getLocalMember().getSocketAddress().getHostName());
-        }
-        valueSet = !valueSet;
-    }
-
-    public void stop()
-    {
-        hazelcast.getClientService().removeClientListener(clientListenerKey);
-        hazelcast.getLifecycleService().shutdown();
-    }
-
-    private void dump() {
-        Collection<Client> clients = hazelcast.getClientService().getConnectedClients();
-        System.out.println("Clients connected: "+clients.size());
-        for(Client client : clients)
-        {
-            System.out.println("- Type: "+client.getClientType() + ", address: "+client.getSocketAddress());
-        }
-
-        //System.out.println("Number of entries in map: "+map.size());
-        //logger.info("Number of entries in map: "+map.size());
     }
 
     public static void main(String[] args) {
