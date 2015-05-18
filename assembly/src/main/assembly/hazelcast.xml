@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hazelcast xsi:schemaLocation="http://www.hazelcast.com/schema/config hazelcast-config-3.3.xsd"
+           xmlns="http://www.hazelcast.com/schema/config"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <group>
+        <name>test</name>
+        <password>test</password>
+    </group>
+
+    <network>
+        <port auto-increment="true" port-count="100">5701</port>
+        <join>
+            <multicast enabled="true">
+                <multicast-group>224.2.2.3</multicast-group>
+                <multicast-port>54327</multicast-port>
+            </multicast>
+        </join>
+        <interfaces enabled="false" />
+    </network>
+
+    <partition-group enabled="false"/>
+	
+    <properties>
+        <property name="hazelcast.logging.type">log4j</property>
+        
+        <property name="hazelcast.heartbeat.interval.seconds">1</property>
+        <property name="hazelcast.max.no.heartbeat.seconds">10</property>
+        
+        <property name="hazelcast.icmp.enabled">true</property>
+        <property name="hazelcast.icmp.timeout">3000</property>
+        <property name="hazelcast.icmp.ttl">10</property>
+        
+        <property name="hazelcast.merge.first.run.delay.seconds">1</property>
+        <property name="hazelcast.merge.next.run.delay.seconds">10</property>
+    </properties>		
+
+    <queue name="default">
+        <max-size>0</max-size>
+        <backup-count>1</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <empty-queue-ttl>-1</empty-queue-ttl>
+    </queue>
+
+    <map name="default">
+        <in-memory-format>BINARY</in-memory-format>
+        <backup-count>1</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <time-to-live-seconds>0</time-to-live-seconds>
+        <max-idle-seconds>0</max-idle-seconds>
+        <eviction-policy>NONE</eviction-policy>
+        <max-size policy="PER_NODE">0</max-size>
+        <eviction-percentage>25</eviction-percentage>
+        <!--
+            While recovering from split-brain (network partitioning),
+            map entries in the small cluster will merge into the bigger cluster
+            based on the policy set here. When an entry merge into the
+            cluster, there might an existing entry with the same key already.
+            Values of these entries might be different for that same key.
+            Which value should be set for the key? Conflict is resolved by
+            the policy set here. Default policy is PutIfAbsentMapMergePolicy
+
+            There are built-in merge policies such as
+            com.hazelcast.map.merge.PassThroughMergePolicy; entry will be added if there is no existing entry for the key.
+            com.hazelcast.map.merge.PutIfAbsentMapMergePolicy ; entry will be added if the merging entry doesn't exist in the cluster.
+            com.hazelcast.map.merge.HigherHitsMapMergePolicy ; entry with the higher hits wins.
+            com.hazelcast.map.merge.LatestUpdateMapMergePolicy ; entry with the latest update wins.
+        -->
+        <merge-policy>com.hazelcast.map.merge.PassThroughMergePolicy</merge-policy>
+        <map-store enabled="false" />
+    </map>
+
+    <multimap name="default">
+        <backup-count>1</backup-count>
+        <value-collection-type>SET</value-collection-type>
+    </multimap>
+
+    <list name="default">
+        <backup-count>1</backup-count>
+    </list>
+
+    <set name="default">
+        <backup-count>1</backup-count>
+    </set>
+
+    <semaphore name="default">
+        <initial-permits>0</initial-permits>
+        <backup-count>1</backup-count>
+        <async-backup-count>0</async-backup-count>
+    </semaphore>
+
+    <serialization>
+        <portable-version>0</portable-version>
+    </serialization>
+
+    <services enable-defaults="true" />
+
+</hazelcast>
